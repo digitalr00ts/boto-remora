@@ -1,0 +1,18 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+better_exceptions = {version = "*",index = "pypi"}
+pylint = "*"
+isort = {extras = ["pyproject"],version = "*"}
+mypy = "*"
+bandit = "*"
+notebook = "*"
+
+[packages]
+boto-remora = {editable = true,path = "."}
+
+[requires]
+# python_version = "3.7"
