@@ -12,6 +12,6 @@ except pkg_resources.DistributionNotFound:
     __version__ = ""
 
 
-__all__ = ["aws", "pricing"]
-
 logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+__all__ = ["aws", "pricing"]
