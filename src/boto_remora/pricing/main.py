@@ -127,7 +127,11 @@ class Offers:
         data = defaultdict(dict)
         for offer in self._data:
             data[offer.region].update(
-                {offer.attributes[self.resource_key.unique_key]: offer.prices[provision_type]}
+                {
+                    offer.attributes[self.resource_key.unique_key]: offer.prices[
+                        provision_type
+                    ]
+                }
             )
         return dict(data)
 
