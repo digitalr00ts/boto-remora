@@ -83,7 +83,8 @@ class AwsBaseService(AwsBase):
 
         # TODO: Move this into a Sts object.
         ret_regions: List[str] = list()
-        regions = self.session.get_available_regions()
+        # TODO: Add partition
+        regions = self.session.get_available_regions(self.service_name)
 
         for region in regions:
             client = self.session.client("sts", region_name=region)
@@ -99,7 +100,8 @@ class AwsBaseService(AwsBase):
                 "Access to all regions failed. Credentials may be invalid or there is a network issue."
             )
 
-        return frozenset(ret_regions)
+        self._available_regions = frozenset(ret_regions)
+        return self._available_regions
 
     # def filter_fmt(self, filters: Dict):
     #     """ Returns list formated for filter. """
