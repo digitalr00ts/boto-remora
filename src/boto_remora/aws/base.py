@@ -81,26 +81,26 @@ class AwsBaseService(AwsBase):
         if self._available_regions:
             return self._available_regions
 
-        # TODO: Move this into a Sts object.
-        ret_regions: List[str] = list()
         # TODO: Add partition
         regions = self.session.get_available_regions(self.service_name)
 
-        for region in regions:
+        def check_access(region):
+            # TODO: Move this into a Sts object.
             client = self.session.client("sts", region_name=region)
             try:
                 client.get_caller_identity()
             except botocore.exceptions.ClientError:
                 _LOGGER.debug("Unable to access region %s.", region)
-            else:
-                ret_regions.append(region)
+                return False
+            return True
 
-        if not ret_regions:
+        self._available_regions = frozenset(filter(check_access, regions))
+
+        if not self._available_regions:
             _LOGGER.error(
                 "Access to all regions failed. Credentials may be invalid or there is a network issue."
             )
 
-        self._available_regions = frozenset(ret_regions)
         return self._available_regions
 
     # def filter_fmt(self, filters: Dict):
