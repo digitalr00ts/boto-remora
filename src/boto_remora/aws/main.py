@@ -14,6 +14,30 @@ from .base import AwsBaseService
 
 
 @dataclasses.dataclass()
+class Ec2(AwsBaseService):
+    """
+    Object to help with SSM
+    """
+
+    service_name: str = dataclasses.field(default="ec2", init=False)
+
+    @property
+    def available_regions(self):
+        """
+        Checks to which regions are enabled and accssible
+        from: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
+        """
+        if self._available_regions:
+            return self._available_regions
+
+        query = "Regions[].RegionName"
+        response = self.client.describe_regions()
+        self._available_regions = frozenset(jmespath.search(query, response))
+
+        return self._available_regions
+
+
+@dataclasses.dataclass()
 class Pricing(AwsBaseService):
     """
     Object to help with pricing
