@@ -68,7 +68,6 @@ class Pricing(AwsBaseService):
 class Ssm(AwsBaseService):
     """
     Object to help with SSM
-    For supported regions see,
     """
 
     service_name: str = dataclasses.field(default="ssm", init=False)
