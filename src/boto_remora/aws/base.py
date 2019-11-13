@@ -12,6 +12,8 @@ from boto_remora.exception import (
     BotoRemoraPricingResourceKeyUndefined,
 )
 
+from . import helper
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,32 +76,9 @@ class AwsBaseService(AwsBase):
 
     @property
     def available_regions(self):
-        """
-        Checks to which regions are enabled and accssible
-        from: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
-        """
-        if self._available_regions:
-            return self._available_regions
-
-        # TODO: Add partition
-        regions = self.session.get_available_regions(self.service_name)
-
-        def check_access(region):
-            # TODO: Move this into a Sts object.
-            client = self.session.client("sts", region_name=region)
-            try:
-                client.get_caller_identity()
-            except botocore.exceptions.ClientError:
-                _LOGGER.debug("Unable to access region %s.", region)
-                return False
-            return True
-
-        self._available_regions = frozenset(filter(check_access, regions))
-
+        """ Checks to which regions are enabled and accessible """
         if not self._available_regions:
-            _LOGGER.error(
-                "Access to all regions failed. Credentials may be invalid or there is a network issue."
-            )
+            self._available_regions = helper.get_accessible_regions(self.service_name, self.session)
 
         return self._available_regions
 
