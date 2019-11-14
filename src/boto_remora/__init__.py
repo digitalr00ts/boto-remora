@@ -13,5 +13,7 @@ except pkg_resources.DistributionNotFound:
 
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
+logging.getLogger("botocore").setLevel(logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 __all__ = ["aws", "pricing"]
