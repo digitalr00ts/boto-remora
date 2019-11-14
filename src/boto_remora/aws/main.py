@@ -4,7 +4,7 @@ import json
 import pathlib
 
 from collections import ChainMap
-from typing import Dict, Iterable, Optional
+from typing import Dict, Optional, Sequence
 
 import jmespath
 
@@ -15,9 +15,7 @@ from .base import AwsBaseService
 
 @dataclasses.dataclass()
 class Ec2(AwsBaseService):
-    """
-    Object to help with SSM
-    """
+    """ Object to help with EC2 """
 
     service_name: str = dataclasses.field(default="ec2", init=False)
 
@@ -27,12 +25,10 @@ class Ec2(AwsBaseService):
         Checks to which regions are enabled and accssible
         from: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
         """
-        if self._available_regions:
-            return self._available_regions
-
-        query = "Regions[].RegionName"
-        response = self.client.describe_regions()
-        self._available_regions = frozenset(jmespath.search(query, response))
+        if not self._available_regions:
+            query = "Regions[].RegionName"
+            response = self.client.describe_regions()
+            self._available_regions = frozenset(jmespath.search(query, response))
 
         return self._available_regions
 
@@ -48,23 +44,28 @@ class Pricing(AwsBaseService):
     service_name: str = dataclasses.field(default="pricing", init=False)
     # servicecode: str = ""
     region_name: str = "us-east-1"
-    filter_keys: Iterable[str] = dataclasses.field(
+    filter_keys: Sequence[str] = dataclasses.field(
         default_factory=lambda: ("Field", "Value")
     )
     # currency: str = "USD"
-    region_map: Dict[str, str] = dataclasses.field(
+    _region_map: Dict[str, str] = dataclasses.field(
         default_factory=dict, init=False, repr=False
     )
-    region_map_rev: Dict[str, str] = dataclasses.field(
+    _region_map_rev: Dict[str, str] = dataclasses.field(
         default_factory=dict, init=False, repr=False
     )
 
-    def __post_init__(self):
-        super().__post_init__()
-        # TODO: Pass the session not the profile. Probably should leverage the boto3 credential object.
-        ssm = Ssm(self.profile_name, region_name=self.region_name)
-        self.region_map = ssm.get_regions()
-        self.region_map_rev = {v: k for k, v in self.region_map.items()}
+    @property
+    def region_map(self):
+        if not self._region_map:
+            self._region_map = Ssm(session=self.session).get_regions()
+        return self._region_map
+
+    @property
+    def region_map_rev(self):
+        if not self._region_map_rev:
+            self._region_map_rev = {v: k for k, v in self.region_map.items()}
+        return self._region_map_rev
 
     def get_price_list(
         self,
@@ -90,9 +91,7 @@ class Pricing(AwsBaseService):
 
 @dataclasses.dataclass()
 class Ssm(AwsBaseService):
-    """
-    Object to help with SSM
-    """
+    """ Object to help with SSM """
 
     service_name: str = dataclasses.field(default="ssm", init=False)
 
@@ -104,11 +103,9 @@ class Ssm(AwsBaseService):
         Dict of region short codes mapped to their long codes.
         """
         regions = self._get_region_from_boto()
-        short_codes = self._get_region_short_codes()
-
-        for short_code in short_codes:
-            if short_code not in regions:
-                regions[short_code] = self._get_region_long_name(short_code)
+        regions.update(
+            map(lambda code: self._get_region_long_name(code), set(self._get_region_short_codes()).difference(regions))
+        )
 
         return regions
 
