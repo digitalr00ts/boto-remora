@@ -7,12 +7,12 @@ from typing import Iterable, List, Optional
 import boto3
 import botocore
 
+from . import helper
+
 from boto_remora.exception import (
     BotoRemoraInvalidServiceRegion,
     BotoRemoraPricingResourceKeyUndefined,
 )
-
-from . import helper
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +78,9 @@ class AwsBaseService(AwsBase):
     def available_regions(self):
         """ Checks to which regions are enabled and accessible """
         if not self._available_regions:
-            self._available_regions = helper.get_accessible_regions(self.service_name, self.session)
+            self._available_regions = helper.get_accessible_regions(
+                self.service_name, self.session
+            )
 
         return self._available_regions
 
