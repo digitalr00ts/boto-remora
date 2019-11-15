@@ -10,8 +10,7 @@ import botocore
 from . import helper
 
 from boto_remora.exception import (
-    BotoRemoraInvalidServiceRegion,
-    BotoRemoraPricingResourceKeyUndefined,
+    BotoRemoraInvalidServiceRegion, BotoRemoraPricingResourceKeyUndefined
 )
 
 

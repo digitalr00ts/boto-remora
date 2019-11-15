@@ -1,16 +1,21 @@
 """ boto_remora.aws.main package for main objects and functions """
 import dataclasses
 import json
+import logging
 import pathlib
 
 from collections import ChainMap
 from typing import Dict, Optional, Sequence
 
+import botocore.exceptions
 import jmespath
 
 from pkg_resources import resource_filename
 
 from .base import AwsBaseService
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass()
@@ -158,3 +163,32 @@ class Ssm(AwsBaseService):
             output.update(p["Value"] for p in page["Parameters"])
 
         return output
+
+
+@dataclasses.dataclass()
+class Sts(AwsBaseService):
+    """ Object to help with STS """
+
+    service_name: str = dataclasses.field(default="sts", init=False)
+
+    def is_region_accessible(self):
+        """
+        Checks region is accessible from a given session.
+        see: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
+        """
+
+        _LOGGER.debug(
+            "Checking %s can access region %s", self.profile_name, self.region_name
+        )
+        try:
+            self.client.get_caller_identity()
+        except botocore.exceptions.ClientError as err:
+            _LOGGER.warning(
+                "Profile %s could not reach region %s. Caught exception %s.%s",
+                self.profile_name,
+                type(err).__name__,
+                self.region_name,
+                err.response["Error"]["Code"],
+            )
+            return False
+        return True
