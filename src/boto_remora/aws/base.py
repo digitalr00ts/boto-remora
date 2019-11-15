@@ -48,6 +48,14 @@ class AwsBase:
         if not self.region_name:
             self.region_name = self.session.region_name
 
+    def is_profile_available(self, profile=None):
+        if profile is None:
+            profile = self.session.profile_name
+        if profile in self.session.available_profiles:
+            return True
+        _LOGGER.warning("Profile %s was not found.", self.profile_name)
+        return False
+
 
 @dataclasses.dataclass(eq=False)
 class AwsBaseService(AwsBase):
