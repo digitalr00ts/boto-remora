@@ -5,7 +5,6 @@ import logging
 from typing import Iterable, List, Optional
 
 import boto3
-import botocore
 
 from . import helper
 
