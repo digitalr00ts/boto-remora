@@ -110,7 +110,7 @@ class Ssm(AwsBaseService):
         regions = self._get_region_from_boto()
         regions.update(
             map(
-                lambda code: self._get_region_long_name(code),
+                self._get_region_long_name,
                 set(self._get_region_short_codes()).difference(regions),
             )
         )
