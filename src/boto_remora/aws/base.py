@@ -48,6 +48,7 @@ class AwsBase:
             self.region_name = self.session.region_name
 
     def is_profile_available(self, profile=None):
+        """ Check if profile exist. """
         if profile is None:
             profile = self.session.profile_name
         if profile in self.session.available_profiles:

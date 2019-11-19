@@ -1,3 +1,4 @@
+""" Helper funtions for boto_remora.aws """
 import logging
 
 from functools import partial

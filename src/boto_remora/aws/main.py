@@ -62,12 +62,14 @@ class Pricing(AwsBaseService):
 
     @property
     def region_map(self):
+        """ Region short names to long names """
         if not self._region_map:
             self._region_map = Ssm(session=self.session).get_regions()
         return self._region_map
 
     @property
     def region_map_rev(self):
+        """ Reverse key value of region_map """
         if not self._region_map_rev:
             self._region_map_rev = {v: k for k, v in self.region_map.items()}
         return self._region_map_rev
