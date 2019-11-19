@@ -171,7 +171,8 @@ class Sts(AwsBaseService):
 
     service_name: str = dataclasses.field(default="sts", init=False)
 
-    def is_default_region_accessible(self):
+    @property
+    def is_session_region_accessible(self):
         """ Checks if session region is accessible. """
 
         _LOGGER.debug(
