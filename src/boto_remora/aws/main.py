@@ -26,10 +26,7 @@ class Ec2(AwsBaseService):
 
     @property
     def available_regions(self):
-        """
-        Checks to which regions are enabled and accssible
-        from: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
-        """
+        """ Checks to which regions are enabled and accessible """
         if not self._available_regions:
             query = "Regions[].RegionName"
             response = self.client.describe_regions()
