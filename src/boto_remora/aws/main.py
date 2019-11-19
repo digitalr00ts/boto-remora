@@ -173,11 +173,8 @@ class Sts(AwsBaseService):
 
     service_name: str = dataclasses.field(default="sts", init=False)
 
-    def is_region_accessible(self):
-        """
-        Checks region is accessible from a given session.
-        see: https://www.cloudar.be/awsblog/checking-if-a-region-is-enabled-using-the-aws-api/
-        """
+    def is_default_region_accessible(self):
+        """ Checks if session region is accessible. """
 
         _LOGGER.debug(
             "Checking %s can access region %s", self.profile_name, self.region_name
