@@ -34,6 +34,7 @@ class Ec2(AwsBaseService):
             query = "Regions[].RegionName"
             response = self.client.describe_regions()
             self._available_regions = frozenset(jmespath.search(query, response))
+            _LOGGER.debug("Account %s has enabled EC2 regions %s.", self.session.profile_name, self._available_regions)
 
         return self._available_regions
 
