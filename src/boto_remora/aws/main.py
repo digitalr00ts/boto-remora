@@ -185,8 +185,8 @@ class Sts(AwsBaseService):
             _LOGGER.warning(
                 "Profile %s could not reach region %s. Caught exception %s.%s",
                 self.profile_name,
-                type(err).__name__,
                 self.region_name,
+                type(err).__name__,
                 err.response["Error"]["Code"],
             )
             return False
