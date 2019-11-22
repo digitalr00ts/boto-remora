@@ -1,5 +1,6 @@
 """ boto_remora.aws.main package for main objects and functions """
 import dataclasses
+import itertools
 import json
 import logging
 import pathlib
@@ -31,7 +32,11 @@ class Ec2(AwsBaseService):
             query = "Regions[].RegionName"
             response = self.client.describe_regions()
             self._available_regions = frozenset(jmespath.search(query, response))
-            _LOGGER.debug("Account %s has enabled EC2 regions %s.", self.session.profile_name, self._available_regions)
+            _LOGGER.debug(
+                "Account %s has enabled EC2 regions %s.",
+                self.session.profile_name,
+                self._available_regions,
+            )
 
         return self._available_regions
 
@@ -59,17 +64,17 @@ class Pricing(AwsBaseService):
     )
 
     @property
-    def region_map(self):
+    def region_names(self):
         """ Region short names to long names """
         if not self._region_map:
-            self._region_map = Ssm(session=self.session).get_regions()
+            self._region_map = Ssm(session=self.session).region_names
         return self._region_map
 
     @property
-    def region_map_rev(self):
-        """ Reverse key value of region_map """
+    def region_names_rev(self):
+        """ Reverse key value of region_names """
         if not self._region_map_rev:
-            self._region_map_rev = {v: k for k, v in self.region_map.items()}
+            self._region_map_rev = {v: k for k, v in self.region_names.items()}
         return self._region_map_rev
 
     def get_price_list(
@@ -80,10 +85,16 @@ class Pricing(AwsBaseService):
         """
         Fetch from price API
         """
-        filters = [
-            {"Type": "TERM_MATCH", self.filter_keys[0]: k, self.filter_keys[1]: v}
-            for k, v in filter_kv.items()
-        ]
+        filters = (
+            [
+                {"Type": "TERM_MATCH", self.filter_keys[0]: k, self.filter_keys[1]: v}
+                for k, v in filter_kv.items()
+            ]
+            if filter_kv
+            else None
+        )
+        _LOGGER.debug("Price search filter %s", filters)
+
         response = self.client.get_products(ServiceCode=servicecode, Filters=filters)
         return response["PriceList"]
 
@@ -100,7 +111,8 @@ class Ssm(AwsBaseService):
 
     service_name: str = dataclasses.field(default="ssm", init=False)
 
-    def get_regions(self):
+    @property
+    def region_names(self):
         """
 
         Returns
@@ -110,8 +122,11 @@ class Ssm(AwsBaseService):
         regions = self._get_region_from_boto()
         regions.update(
             map(
-                self._get_region_long_name,
-                set(self._get_region_short_codes()).difference(regions),
+                lambda code: (code, self._get_region_long_name(code)),
+                filter(
+                    lambda short_code: short_code not in regions,
+                    self._get_region_short_codes(),
+                ),
             )
         )
 
@@ -156,13 +171,14 @@ class Ssm(AwsBaseService):
         return response["Parameters"][0]["Value"]
 
     def _get_region_short_codes(self):
-        output = set()
-        for page in self.client.get_paginator("get_parameters_by_path").paginate(
-            Path="/aws/service/global-infrastructure/regions"
-        ):
-            output.update(p["Value"] for p in page["Parameters"])
-
-        return output
+        return itertools.chain.from_iterable(
+            map(
+                lambda page: map(lambda param: param["Value"], page["Parameters"]),
+                self.client.get_paginator("get_parameters_by_path").paginate(
+                    Path="/aws/service/global-infrastructure/regions"
+                ),
+            )
+        )
 
 
 @dataclasses.dataclass()
