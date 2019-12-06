@@ -4,13 +4,11 @@ import itertools
 import json
 import logging
 import pathlib
-
 from collections import ChainMap
 from typing import Dict, Optional, Sequence
 
 import botocore.exceptions
 import jmespath
-
 from pkg_resources import resource_filename
 
 from .base import AwsBaseService
@@ -52,13 +50,9 @@ class Pricing(AwsBaseService):
     service_name: str = dataclasses.field(default="pricing", init=False)
     # servicecode: str = ""
     region_name: str = "us-east-1"
-    filter_keys: Sequence[str] = dataclasses.field(
-        default_factory=lambda: ("Field", "Value")
-    )
+    filter_keys: Sequence[str] = dataclasses.field(default_factory=lambda: ("Field", "Value"))
     # currency: str = "USD"
-    _region_map: Dict[str, str] = dataclasses.field(
-        default_factory=dict, init=False, repr=False
-    )
+    _region_map: Dict[str, str] = dataclasses.field(default_factory=dict, init=False, repr=False)
     _region_map_rev: Dict[str, str] = dataclasses.field(
         default_factory=dict, init=False, repr=False
     )
@@ -80,11 +74,14 @@ class Pricing(AwsBaseService):
     def get_price_list(
         self,
         servicecode: Optional[str] = None,
+        region: Optional[str] = None,
         filter_kv: Optional[Dict[str, str]] = None,
     ):
         """
         Fetch from price API
         """
+        if region:
+            filter_kv["location"] = self.region_names[region]
         filters = (
             [
                 {"Type": "TERM_MATCH", self.filter_keys[0]: k, self.filter_keys[1]: v}
@@ -93,10 +90,24 @@ class Pricing(AwsBaseService):
             if filter_kv
             else None
         )
-        _LOGGER.debug("Price search filter %s", filters)
+        _LOGGER.debug("Price search %s with filter %s", servicecode, filters)
 
-        response = self.client.get_products(ServiceCode=servicecode, Filters=filters)
-        return response["PriceList"]
+        kwargs = {
+            "ServiceCode": servicecode,
+            "Filters": filters,
+        }
+        pricelist = list()
+        response = {"NextToken": ""}
+        while "NextToken" in response:
+            response = self.client.get_products(**kwargs)
+            metadata = response["ResponseMetadata"]
+            _LOGGER.debug(
+                "Request %s status code %s", metadata["RequestId"], metadata["HTTPStatusCode"],
+            )
+            pricelist.extend(map(json.loads, response["PriceList"]))
+            kwargs["NextToken"] = response.get("NextToken")
+
+        return pricelist
 
     # def filter_fmt(self, filters: Dict[str, str], filter_type="TERM_MATCH"):
     #     """
@@ -124,8 +135,7 @@ class Ssm(AwsBaseService):
             map(
                 lambda code: (code, self._get_region_long_name(code)),
                 filter(
-                    lambda short_code: short_code not in regions,
-                    self._get_region_short_codes(),
+                    lambda short_code: short_code not in regions, self._get_region_short_codes(),
                 ),
             )
         )
@@ -147,9 +157,7 @@ class Ssm(AwsBaseService):
         Dict[str, str]
             A map of region names to their human friend names.
         """
-        endpoints_file = pathlib.Path(
-            resource_filename("botocore", "data/endpoints.json")
-        )
+        endpoints_file = pathlib.Path(resource_filename("botocore", "data/endpoints.json"))
         jmes_search = (
             f"partitions[?partition == '{partition}'].regions"
             if partition
@@ -164,9 +172,7 @@ class Ssm(AwsBaseService):
         return region_data
 
     def _get_region_long_name(self, short_code):
-        param_name = (
-            "/aws/service/global-infrastructure/regions/" f"{short_code}/longName"
-        )
+        param_name = "/aws/service/global-infrastructure/regions/" f"{short_code}/longName"
         response = self.client.get_parameters(Names=[param_name])
         return response["Parameters"][0]["Value"]
 
@@ -191,9 +197,7 @@ class Sts(AwsBaseService):
     def is_session_region_accessible(self):
         """ Checks if session region is accessible. """
 
-        _LOGGER.debug(
-            "Checking %s can access region %s", self.profile_name, self.region_name
-        )
+        _LOGGER.debug("Checking %s can access region %s", self.profile_name, self.region_name)
         try:
             self.client.get_caller_identity()
         except botocore.exceptions.ClientError as err:

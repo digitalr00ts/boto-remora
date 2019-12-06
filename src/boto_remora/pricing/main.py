@@ -1,10 +1,8 @@
 """ Main objects and functions for boto_remora.pricing """
 import dataclasses
-import json
 import logging
-
 from collections import defaultdict
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from boto_remora.aws import Pricing
 from boto_remora.util import ExtendedEnum
@@ -25,6 +23,7 @@ class ResourceKey:
 
 class AWSResourceKeys(ExtendedEnum):
     """ ResourceKey objects for AWS resources """
+
     EC2 = ResourceKey("AmazonEC2", "Compute Instance", "instanceType")
     EBS = ResourceKey("AmazonEC2", "Storage", "volumeType")
 
@@ -41,6 +40,7 @@ class Offer:
     prices: Union[Dict[str, float], float] = None
     region: Optional[str] = None
     serviceCode: str = ""  # pylint: disable=invalid-name
+    terms: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass()
@@ -53,16 +53,15 @@ class Offers:
     remora_aws: Pricing
     currency: str = "USD"
     resource_key: Optional[ResourceKey] = dataclasses.field(default=None, init=False)
-    _data: List[Offer] = dataclasses.field(default_factory=list, repr=False, init=False)
+    _data: Dict[str, Dict[str, List[Offer]]] = dataclasses.field(
+        default_factory=list, repr=False, init=False
+    )
     # provison_type: str = "OnDemand"
 
     def __post_init__(self):
         self.resource_key = getattr(AWSResourceKeys, self.resource_type).value
         _LOGGER.debug(self.resource_key)
-        # self._data = self._populate()
-
-    # def __len__(self):
-    #     return len(self._data)
+        self._data = defaultdict(dict)
 
     @property
     def offers(self):
@@ -74,27 +73,7 @@ class Offers:
         """
         return list(self._data)
 
-    def _populate(self, region: Optional[str] = None):
-        """
-        Fetch from price API
-        """
-        key: str = "productFamily"
-        filter_kv: Dict[str, str] = {key: getattr(self.resource_key, key, "")}
-        if region:
-            filter_kv["region"] = region
-
-        response = self.remora_aws.get_price_list(
-            servicecode=self.resource_key.servicecode, filter_kv=filter_kv
-        )
-
-        return [
-            self._create_offer_from_pricelist_item(pricelist_item)
-            for pricelist_item in response
-        ]
-
     def _create_offer_from_pricelist_item(self, pricelist_item):
-        if isinstance(pricelist_item, str):
-            pricelist_item = json.loads(pricelist_item)
         product = pricelist_item["product"]
         terms = pricelist_item["terms"]
 
@@ -104,7 +83,7 @@ class Offers:
         for ptype, v1 in terms.items():  # pylint: disable = invalid-name
             for v2 in v1.values():  # pylint: disable = invalid-name
                 for pdetails in v2["priceDimensions"].values():
-                    prices[ptype] = pdetails["pricePerUnit"][self.currency]
+                    prices[ptype] = float(pdetails["pricePerUnit"][self.currency])
 
         offer_kargs = dict()
         offer_kargs["attributes"] = product["attributes"]
@@ -117,29 +96,11 @@ class Offers:
         offer_kargs["prices"] = prices
         offer_kargs["unit"] = pdetails["unit"]
         offer_kargs["description"] = pdetails["description"]
+        offer_kargs["terms"] = terms
 
         return Offer(**offer_kargs)
 
-    def prices_by_key(self, provision_type="OnDemand"):
-        """
-
-        Parameters
-        ----------
-        provision_type
-
-        Returns
-        -------
-
-        """
-
-        data = defaultdict(dict)
-        for offer in self._data:
-            data[offer.region].update(
-                {offer.attributes[self.resource_key.key]: offer.prices[provision_type]}
-            )
-        return dict(data)
-
-    def get_price_raw(
+    def get_pricelist_raw(
         self,
         region: Optional[str] = None,
         val_for_key: Optional[str] = None,
@@ -149,11 +110,21 @@ class Offers:
         filter_kv = key_val.copy() if key_val else dict()
         pfkey = "productFamily"
         filter_kv[pfkey] = getattr(self.resource_key, pfkey)
-        if region:
-            filter_kv["location"] = self.remora_aws.region_names[region]
         if val_for_key:
             filter_kv[self.resource_key.key] = val_for_key
 
         return self.remora_aws.get_price_list(
-            servicecode=self.resource_key.servicecode, filter_kv=filter_kv
+            servicecode=self.resource_key.servicecode, region=region, filter_kv=filter_kv,
         )
+
+    def get_offers(self, region: str, key: str) -> List[Offer]:
+        """ Get list of offers from region.key. """
+        if not (self._data.get(region) and self._data[region].get(key)):
+            self._data[region][key] = list(
+                map(
+                    self._create_offer_from_pricelist_item,
+                    self.get_pricelist_raw(region=region, val_for_key=key),
+                )
+            )
+
+        return self._data[region][key]

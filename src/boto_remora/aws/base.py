@@ -1,17 +1,16 @@
 """ boto_remora.aws package """
 import dataclasses
 import logging
-
 from typing import Iterable, List, Optional
 
 import boto3
-
-from . import helper
 
 from boto_remora.exception import (
     BotoRemoraInvalidServiceRegion,
     BotoRemoraPricingResourceKeyUndefined,
 )
+
+from . import helper
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,9 +61,7 @@ class AwsBaseService(AwsBase):
     """ Base class to call a service with AWS API. """
 
     service_name: str = ""
-    filter_keys: List[str] = dataclasses.field(
-        default_factory=lambda: ["Name", "Value"]
-    )
+    filter_keys: List[str] = dataclasses.field(default_factory=lambda: ["Name", "Value"])
     client: Optional[object] = dataclasses.field(
         default=None, init=False, compare=False, repr=False
     )
@@ -76,9 +73,7 @@ class AwsBaseService(AwsBase):
         super().__post_init__()
         if not self.region_name:
             self.region_name = self.session.region_name
-        if self.region_name not in self.session.get_available_regions(
-            self.service_name
-        ):
+        if self.region_name not in self.session.get_available_regions(self.service_name):
             raise BotoRemoraInvalidServiceRegion(self.service_name, self.region_name)
         self.client = self.session.client(self.service_name)
 
