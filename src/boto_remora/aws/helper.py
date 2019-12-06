@@ -8,7 +8,7 @@ from typing import FrozenSet, Iterator, Tuple
 import boto3
 import botocore
 
-from boto_remora.aws.base import Sts
+from boto_remora.aws.main import Sts
 
 
 _LOGGER = logging.getLogger(__name__)
