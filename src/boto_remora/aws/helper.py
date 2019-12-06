@@ -8,7 +8,7 @@ from typing import FrozenSet, Iterator, Tuple
 import boto3
 import botocore
 
-import boto_remora.aws
+from boto_remora.aws.base import Sts
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,8 +56,7 @@ def get_authed_profiles(
     kwargs = {"region_name": region} if region else dict()
     with ThreadPoolExecutor() as executor:
         account_check = executor.map(
-            lambda profile_: boto_remora.aws.Sts(profile_, **kwargs).is_session_region_accessible,
-            profiles,
+            lambda profile_: Sts(profile_, **kwargs).is_session_region_accessible, profiles,
         )
         rtn = tuple(compress(profiles, account_check))
     return rtn
