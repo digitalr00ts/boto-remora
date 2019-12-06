@@ -1,11 +1,14 @@
 """ Helper funtions for boto_remora.aws """
 import logging
-
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import FrozenSet
+from itertools import compress
+from typing import FrozenSet, Iterator, Tuple
 
 import boto3
 import botocore
+
+import boto_remora.aws
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,9 +36,7 @@ def is_region_accessible(region, session):
     return True
 
 
-def get_accessible_regions(
-    service_name: str, session: boto3.session.Session
-) -> FrozenSet[str]:
+def get_accessible_regions(service_name: str, session: boto3.session.Session) -> FrozenSet[str]:
     """ Returns enabled regions from a given session. """
     # TODO: Add partition
     regions = session.get_available_regions(service_name)
@@ -46,3 +47,17 @@ def get_accessible_regions(
         _LOGGER.error("Access to all regions failed. There may be a network issue.")
 
     return available_regions
+
+
+def get_authed_profiles(
+    profiles: Iterator[str] = tuple(botocore.session.Session().available_profiles), region=None
+) -> Tuple[str]:
+    """ Return iterator of authenticated profiles. """
+    kwargs = {"region_name": region} if region else dict()
+    with ThreadPoolExecutor() as executor:
+        account_check = executor.map(
+            lambda profile_: boto_remora.aws.Sts(profile_, **kwargs).is_session_region_accessible,
+            profiles,
+        )
+        rtn = tuple(compress(profiles, account_check))
+    return rtn
