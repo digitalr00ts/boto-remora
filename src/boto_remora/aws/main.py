@@ -192,6 +192,8 @@ class Sts(AwsBaseService):
     """ Object to help with STS """
 
     service_name: str = dataclasses.field(default="sts", init=False)
+    _account: Optional[str] = dataclasses.field(default=None, init=False)
+    _user: Optional[str] = dataclasses.field(default=None, init=False)
 
     @property
     def is_session_region_accessible(self):
@@ -199,7 +201,7 @@ class Sts(AwsBaseService):
 
         _LOGGER.debug("Checking %s can access region %s", self.profile_name, self.region_name)
         try:
-            self.client.get_caller_identity()
+            caller_identity = self.client.get_caller_identity()
         except botocore.exceptions.ClientError as err:
             _LOGGER.warning(
                 "Profile %s could not reach region %s. Caught exception %s.%s",
@@ -208,5 +210,22 @@ class Sts(AwsBaseService):
                 type(err).__name__,
                 err.response["Error"]["Code"],
             )
+        else:
+            self._account = caller_identity["Account"]
+            self._user = caller_identity["Arn"]
             return False
         return True
+
+    @property
+    def account(self) -> str:
+        """ Account number of the caller identity """
+        if not self._account and self.is_session_region_accessible:
+            _LOGGER.error("Unable to determine account for %s", self.profile_name)
+        return self._account
+
+    @property
+    def user(self) -> str:
+        """ User ARN of the caller identity """
+        if not self._user and self.is_session_region_accessible:
+            _LOGGER.error("Unable to determine the user ID for %s", self.profile_name)
+        return self._account
