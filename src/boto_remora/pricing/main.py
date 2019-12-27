@@ -77,7 +77,7 @@ class Offers:
     @property
     def keys(self):
         """ Possible values for attributes """
-        if not self.keys:
+        if not self._keys:
             results = self.aws_pricing.client.get_attribute_values(
                 ServiceCode=getattr(self.resource_key, "servicecode"),
                 AttributeName=getattr(self.resource_key, "key"),
