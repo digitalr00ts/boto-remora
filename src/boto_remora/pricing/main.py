@@ -2,6 +2,7 @@
 import dataclasses
 import logging
 from collections import defaultdict
+from itertools import chain
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 from boto_remora.aws import Pricing
@@ -78,11 +79,14 @@ class Offers:
     def keys(self):
         """ Possible values for attributes """
         if not self._keys:
-            results = self.aws_pricing.client.get_attribute_values(
+            pages = self.aws_pricing.client.get_paginator("get_attribute_values").paginate(
                 ServiceCode=getattr(self.resource_key, "servicecode"),
                 AttributeName=getattr(self.resource_key, "key"),
             )
-            self._keys = tuple(val_["Value"] for val_ in results["AttributeValues"])
+            results = chain.from_iterable(
+                map(lambda item_: (val_["Value"] for val_ in item_["AttributeValues"]), pages)
+            )
+            self._keys = tuple(results)
         return self._keys
 
     def _create_offer_from_pricelist_item(self, pricelist_item):
