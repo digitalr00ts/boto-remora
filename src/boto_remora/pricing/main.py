@@ -2,7 +2,7 @@
 import dataclasses
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from boto_remora.aws import Pricing
 from boto_remora.util import ExtendedEnum
@@ -50,12 +50,13 @@ class Offers:
     """
 
     resource_type: str
-    remora_aws: Pricing
     currency: str = "USD"
-    resource_key: Optional[ResourceKey] = dataclasses.field(default=None, init=False)
+    aws_pricing: Pricing = dataclasses.field(default=Pricing(), repr=False)
+    resource_key: Optional[ResourceKey] = dataclasses.field(default=None, init=False, repr=False)
     _data: Dict[str, Dict[str, List[Offer]]] = dataclasses.field(
-        default_factory=list, repr=False, init=False
+        default_factory=dict, repr=False, init=False
     )
+    _keys: Sequence[str] = dataclasses.field(default_factory=tuple, repr=False, init=False)
     # provison_type: str = "OnDemand"
 
     def __post_init__(self):
@@ -72,6 +73,17 @@ class Offers:
         List of Offer objects
         """
         return list(self._data)
+
+    @property
+    def keys(self):
+        """ Possible values for attributes """
+        if not self.keys:
+            results = self.aws_pricing.client.get_attribute_values(
+                ServiceCode=getattr(self.resource_key, "servicecode"),
+                AttributeName=getattr(self.resource_key, "key"),
+            )
+            self._keys = tuple(val_["Value"] for val_ in results["AttributeValues"])
+        return self._keys
 
     def _create_offer_from_pricelist_item(self, pricelist_item):
         product = pricelist_item["product"]
@@ -90,7 +102,7 @@ class Offers:
         offer_kargs["productFamily"] = product["productFamily"]
         offer_kargs["currency"] = self.currency
         offer_kargs["serviceCode"] = pricelist_item["serviceCode"]
-        offer_kargs["region"] = self.remora_aws.region_names_rev[
+        offer_kargs["region"] = self.aws_pricing.region_names_rev[
             product["attributes"]["location"]
         ]
         offer_kargs["prices"] = prices
@@ -113,7 +125,7 @@ class Offers:
         if val_for_key:
             filter_kv[self.resource_key.key] = val_for_key
 
-        return self.remora_aws.get_price_list(
+        return self.aws_pricing.get_price_list(
             servicecode=self.resource_key.servicecode, region=region, filter_kv=filter_kv,
         )
 
