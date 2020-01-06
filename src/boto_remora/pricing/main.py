@@ -76,7 +76,7 @@ class Offers:
         return list(self._data)
 
     @property
-    def keys(self):
+    def available_keys(self):
         """ Possible values for attributes """
         if not self._keys:
             pages = self.aws_pricing.client.get_paginator("get_attribute_values").paginate(
@@ -134,7 +134,7 @@ class Offers:
         )
 
     def get_offers(self, region: str, key: str) -> List[Offer]:
-        """ Get list of offers from region.key. """
+        """ Lazily load and return list of offers from region.key. """
         if not (self._data.get(region) and self._data[region].get(key)):
             self._data[region][key] = list(
                 map(
