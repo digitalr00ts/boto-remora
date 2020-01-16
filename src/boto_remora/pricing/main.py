@@ -1,9 +1,11 @@
 """ Main objects and functions for boto_remora.pricing """
+# pylint: disable=expression-not-assigned,too-many-arguments
 import dataclasses
 import logging
-from collections import Mapping, defaultdict, deque
+from collections import defaultdict, deque
+from collections.abc import Mapping
 from itertools import chain
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 from boto_remora.aws import Pricing
 from boto_remora.util import ExtendedEnum
@@ -29,8 +31,8 @@ class AWSResourceKeys(ExtendedEnum):
     EBS = ResourceKey("AmazonEC2", "Storage", "volumeType")
 
 
-@dataclasses.dataclass()  # pylint: disable=too-many-instance-attributes
-class Offer:
+@dataclasses.dataclass()
+class Offer:  # pylint: disable=too-many-instance-attributes
     """ AWS Pricing API response """
 
     unit: str
@@ -108,9 +110,9 @@ class Offers:
         prices = dict()
         pdetails = dict()
         # TODO: changing to recursion for more robust solution
-        for ptype, v1 in terms.items():  # pylint: disable = invalid-name
-            for v2 in v1.values():  # pylint: disable = invalid-name
-                for pdetails in v2["priceDimensions"].values():
+        for ptype, v1_ in terms.items():
+            for v2_ in v1_.values():
+                for pdetails in v2_["priceDimensions"].values():
                     prices[ptype] = float(pdetails["pricePerUnit"][self.currency])
 
         offer_kargs = dict()
@@ -185,7 +187,7 @@ class Offers:
         _LOGGER.debug("Filter for offers %s", filters)
         return tuple(filter(isdata, data))
 
-    def get_ece2filtered(
+    def get_ece2filtered(  # pylint: disable=invalid-name
         self,
         region: str,
         key: str,
@@ -193,7 +195,7 @@ class Offers:
         sw: str = "NA",
         capstat: str = "Used",
         tenancy: str = "Shared",
-        license: str = "No License required",
+        lic: str = "No License required",
     ) -> Sequence[Offer]:
         """ EC2 specific filtering of cached offers """
         filters = deque()
@@ -205,7 +207,7 @@ class Offers:
             filters.append(("capacitystatus", capstat))
         if tenancy:
             filters.append(("tenancy", tenancy))
-        if license:
-            filters.append(("licenseModel", license))
+        if lic:
+            filters.append(("licenseModel", lic))
 
         return self.filter_cached(filters=filters, region=region, key=key)
