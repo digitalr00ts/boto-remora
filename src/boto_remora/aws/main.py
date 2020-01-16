@@ -5,7 +5,7 @@ import json
 import logging
 import pathlib
 from collections import ChainMap
-from typing import Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import botocore.exceptions
 import jmespath
@@ -56,6 +56,31 @@ class Pricing(AwsBaseService):
     _region_map_rev: Dict[str, str] = dataclasses.field(
         default_factory=dict, init=False, repr=False
     )
+    _services: Dict[str, Any] = dataclasses.field(default_factory=dict, init=False, repr=False)
+
+    @property
+    def services(self):
+        """ Maps service attributes by service code """
+        if not self._services:
+            next_token = ""
+            response = {"NextToken": ""}
+            while "NextToken" in response:
+                response = self.client.describe_services(NextToken=next_token)
+                metadata = response["ResponseMetadata"]
+                _LOGGER.debug(
+                    "Request %s status code %s",
+                    metadata["RequestId"],
+                    metadata["HTTPStatusCode"],
+                )
+                svcdata = map(
+                    lambda item_: (item_["ServiceCode"], item_["AttributeNames"]),
+                    response["Services"],
+                )
+
+                self._services.update(svcdata)
+                next_token = response.get("NextToken")
+
+        return self._services
 
     @property
     def region_names(self):
