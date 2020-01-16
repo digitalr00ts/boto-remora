@@ -113,7 +113,7 @@ class Pricing(AwsBaseService):
     #     """
     #     Returns list formatted for pricing filter_fmt.
     #     """
-    #     return [{"Type": filter_type}.update(super().filter_fmt(f)) for f in filters]
+    #     return [{"Type": filter_type}.update(super().filter_fmt(cached)) for cached in filters]
 
 
 @dataclasses.dataclass()

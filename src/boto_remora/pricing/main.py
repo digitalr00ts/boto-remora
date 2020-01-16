@@ -1,9 +1,9 @@
 """ Main objects and functions for boto_remora.pricing """
 import dataclasses
 import logging
-from collections import defaultdict
+from collections import Mapping, defaultdict, deque
 from itertools import chain
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 from boto_remora.aws import Pricing
 from boto_remora.util import ExtendedEnum
@@ -54,7 +54,7 @@ class Offers:
     currency: str = "USD"
     aws_pricing: Pricing = dataclasses.field(default=Pricing(), repr=False)
     resource_key: Optional[ResourceKey] = dataclasses.field(default=None, init=False, repr=False)
-    _data: Dict[str, Dict[str, List[Offer]]] = dataclasses.field(
+    _data: Dict[str, Dict[str, Sequence[Offer]]] = dataclasses.field(
         default_factory=dict, repr=False, init=False
     )
     _keys: Sequence[str] = dataclasses.field(default_factory=tuple, repr=False, init=False)
@@ -88,6 +88,18 @@ class Offers:
             )
             self._keys = tuple(results)
         return self._keys
+
+    @property
+    def cached(self) -> Sequence[Offer]:
+        """ All cached data """
+        return self._flatten(self._data)
+
+    def _flatten(self, data: Mapping) -> Sequence[Any]:
+        """ Flatten cached data """
+        rtn = deque()
+        for val_ in data.values():
+            rtn.extend(self._flatten(val_)) if isinstance(val_, Mapping) else rtn.extend(val_)
+        return rtn
 
     def _create_offer_from_pricelist_item(self, pricelist_item):
         product = pricelist_item["product"]
@@ -133,7 +145,7 @@ class Offers:
             servicecode=self.resource_key.servicecode, region=region, filter_kv=filter_kv,
         )
 
-    def get_offers(self, region: str, key: str) -> List[Offer]:
+    def get(self, region: str, key: str,) -> Sequence[Offer]:
         """ Lazily load and return list of offers from region.key. """
         if not (self._data.get(region) and self._data[region].get(key)):
             self._data[region][key] = list(
@@ -144,3 +156,56 @@ class Offers:
             )
 
         return self._data[region][key]
+
+    def filter_cached(
+        self,
+        filters: Optional[Union[Sequence[Sequence[str]], Dict[str, str]]] = None,
+        region: Optional[str] = None,
+        key: Optional[str] = None,
+    ) -> Sequence[Offer]:
+        """ Filter cached offers """
+
+        def isdata(offer: Offer) -> bool:
+            attribs = offer.attributes
+            filter_vals = map(lambda fil_: attribs.get(fil_[0]) == fil_[1], filters)
+            return all(filter_vals) if attribs else False
+
+        filters = deque(filters.items()) if isinstance(filters, Mapping) else deque(filters)
+
+        if region and key:
+            data = self.get(region=region, key=key)
+        elif region:
+            data = self._data[region]
+        elif key:
+            filters.append((self.resource_key, key))
+            data = self.cached
+        else:
+            data = self.cached
+
+        _LOGGER.debug("Filter for offers %s", filters)
+        return tuple(filter(isdata, data))
+
+    def get_ece2filtered(
+        self,
+        region: str,
+        key: str,
+        os: str = "Linux",
+        sw: str = "NA",
+        capstat: str = "Used",
+        tenancy: str = "Shared",
+        license: str = "No License required",
+    ) -> Sequence[Offer]:
+        """ EC2 specific filtering of cached offers """
+        filters = deque()
+        if os:
+            filters.append(("operatingSystem", os))
+        if sw:
+            filters.append(("preInstalledSw", sw))
+        if capstat:
+            filters.append(("capacitystatus", capstat))
+        if tenancy:
+            filters.append(("tenancy", tenancy))
+        if license:
+            filters.append(("licenseModel", license))
+
+        return self.filter_cached(filters=filters, region=region, key=key)
