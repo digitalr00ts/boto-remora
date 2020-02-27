@@ -4,6 +4,7 @@ import itertools
 import json
 import logging
 import pathlib
+import warnings
 from collections import ChainMap
 from typing import Any, Dict, Optional, Sequence
 
@@ -217,40 +218,61 @@ class Sts(AwsBaseService):
     """ Object to help with STS """
 
     service_name: str = dataclasses.field(default="sts", init=False)
+    _caller_identity: Dict[str, str] = dataclasses.field(default_factory=dict, init=False)
+    # Should remove these properties in favor of _identity_caller
     _account: Optional[str] = dataclasses.field(default=None, init=False)
-    _user: Optional[str] = dataclasses.field(default=None, init=False)
 
     @property
-    def is_session_region_accessible(self):
-        """ Checks if session region is accessible. """
+    def caller_identity(self) -> Dict[str, str]:
+        """ Cache boto3.session('sts').get_caller_identity() """
+        if not self._caller_identity:
+            self._caller_identity = self._get_caller_identity()
+            # Should remove these properties in favor of _caller_identity
+            self._account = self._caller_identity.get("Account")
+        return self._caller_identity
 
-        _LOGGER.debug("Checking %s can access region %s", self.profile_name, self.region_name)
+    def _get_caller_identity(self, region=None):
+        client = (
+            self.session.client(self.service_name, region_name=region) if region else self.client
+        )
+        if not client:
+            client = self.client
+        caller_identity = dict()
         try:
-            caller_identity = self.client.get_caller_identity()
+            caller_identity = client.get_caller_identity()
         except botocore.exceptions.ClientError as err:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "Profile %s could not reach region %s. Caught exception %s.%s",
                 self.profile_name,
-                self.region_name,
+                region if region else self.region_name,
                 type(err).__name__,
                 err.response["Error"]["Code"],
             )
-        else:
-            self._account = caller_identity["Account"]
-            self._user = caller_identity["Arn"]
-            return False
-        return True
+        return caller_identity
+
+    def is_accessible(self, region: Optional[str] = None) -> bool:
+        """ Checks if region or default session is accessible. """
+        return bool(self._get_caller_identity(region))
 
     @property
-    def account(self) -> str:
+    def is_session_region_accessible(self) -> bool:
+        """ Checks if session region is accessible. """
+        warnings.warn(
+            f"Use Sts.is_accessible() instead of Sts.is_session_region_accessible",
+            DeprecationWarning,
+        )
+        _LOGGER.debug("Checking %s can access region %s", self.profile_name, self.region_name)
+
+        return self.is_accessible()
+
+    @property
+    def account(self) -> Optional[str]:
         """ Account number of the caller identity """
-        if not self._account and self.is_session_region_accessible:
+        warnings.warn(
+            f'Use Sts.caller_identity["Account"] instead of Sts.account.', DeprecationWarning
+        )
+        if not self._account:
+            self._account = self.caller_identity.get("Account")
+        if not self._account:
             _LOGGER.error("Unable to determine account for %s", self.profile_name)
-        return self._account
-
-    @property
-    def user(self) -> str:
-        """ User ARN of the caller identity """
-        if not self._user and self.is_session_region_accessible:
-            _LOGGER.error("Unable to determine the user ID for %s", self.profile_name)
         return self._account
