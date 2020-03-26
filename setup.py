@@ -14,9 +14,9 @@ from setuptools import setup
 SETUPTOOLS_VER = "30.5.0"
 
 try:
-    require("setuptools>=" + SETUPTOOLS_VER)
+    require(f"setuptools>={SETUPTOOLS_VER}")
 except VersionConflict:
-    print("Error: version of setuptools is too old (<%s)!" % SETUPTOOLS_VER)
+    print(f"Error: version of setuptools is too old (<{SETUPTOOLS_VER})!")
     sys.exit(1)
 
 setup(use_scm_version=True)
